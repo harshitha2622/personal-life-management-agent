@@ -7,6 +7,10 @@ from database.db import (
     get_tasks,
     update_task_status,
     delete_task,
+    add_goal,
+    get_goals,
+    update_goal_progress,
+    delete_goal,
 )
 
 # ---------------------------------------
