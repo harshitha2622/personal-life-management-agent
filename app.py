@@ -13,9 +13,9 @@ from database.db import (
     delete_goal,
 )
 
-# ---------------------------------------
+# =====================================================
 # PAGE CONFIGURATION
-# ---------------------------------------
+# =====================================================
 
 st.set_page_config(
     page_title="LifeOS AI",
@@ -24,15 +24,15 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ---------------------------------------
+# =====================================================
 # DATABASE INITIALIZATION
-# ---------------------------------------
+# =====================================================
 
 initialize_database()
 
-# ---------------------------------------
+# =====================================================
 # CUSTOM STYLING
-# ---------------------------------------
+# =====================================================
 
 st.markdown(
     """
@@ -47,14 +47,18 @@ st.markdown(
             padding: 18px;
             border-radius: 12px;
         }
+
+        div[data-testid="stMetric"] {
+            border-radius: 12px;
+        }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# ---------------------------------------
-# SIDEBAR
-# ---------------------------------------
+# =====================================================
+# SIDEBAR NAVIGATION
+# =====================================================
 
 with st.sidebar:
 
@@ -81,15 +85,9 @@ with st.sidebar:
 
     st.caption("Plan better. Live better.")
 
-# ---------------------------------------
-# LOAD TASKS FROM SQLITE
-# ---------------------------------------
-
-tasks = get_tasks()
-
-# ---------------------------------------
+# =====================================================
 # DASHBOARD
-# ---------------------------------------
+# =====================================================
 
 if page == "Dashboard":
 
@@ -99,10 +97,14 @@ if page == "Dashboard":
         "Your personal space to plan, organize, and grow."
     )
 
+    tasks = get_tasks()
+    goals = get_goals()
+
     total_tasks = len(tasks)
 
     completed_tasks = sum(
-        task["completed"] for task in tasks
+        bool(task["completed"])
+        for task in tasks
     )
 
     pending_tasks = total_tasks - completed_tasks
@@ -113,13 +115,24 @@ if page == "Dashboard":
         else 0
     )
 
+    # Dashboard metrics
+
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Total Tasks", total_tasks)
+    col1.metric(
+        "Total Tasks",
+        total_tasks,
+    )
 
-    col2.metric("Completed", completed_tasks)
+    col2.metric(
+        "Completed",
+        completed_tasks,
+    )
 
-    col3.metric("Pending", pending_tasks)
+    col3.metric(
+        "Pending",
+        pending_tasks,
+    )
 
     col4.metric(
         "Completion Rate",
@@ -128,12 +141,15 @@ if page == "Dashboard":
 
     st.divider()
 
-    st.subheader("Today's Tasks")
+    # Today's tasks
+
+    st.subheader("📅 Today's Tasks")
 
     today = date.today().isoformat()
 
     todays_tasks = [
-        task for task in tasks
+        task
+        for task in tasks
         if task["deadline"] == today
     ]
 
@@ -146,68 +162,133 @@ if page == "Dashboard":
         for task in todays_tasks:
 
             status = (
-                "✅" if task["completed"]
+                "✅"
+                if task["completed"]
                 else "⏳"
             )
 
             st.write(
-                f"{status} {task['title']}"
+                f"{status} **{task['title']}**"
+            )
+
+            st.caption(
+                f"Priority: {task['priority']} | "
+                f"Duration: {task['duration']} minutes"
             )
 
     st.divider()
 
-    if st.button("➕ Create a New Task"):
+    # Goal overview
 
-        st.session_state.quick_add = True
+    st.subheader("🎯 Goal Overview")
 
-    if st.session_state.get("quick_add", False):
+    total_goals = len(goals)
+
+    completed_goals = sum(
+        goal["status"] == "Completed"
+        for goal in goals
+    )
+
+    goal_col1, goal_col2 = st.columns(2)
+
+    goal_col1.metric(
+        "Total Goals",
+        total_goals,
+    )
+
+    goal_col2.metric(
+        "Completed Goals",
+        completed_goals,
+    )
+
+    st.divider()
+
+    # Quick task creation
+
+    st.subheader("⚡ Quick Actions")
+
+    if st.button(
+        "➕ Create a New Task",
+        use_container_width=False,
+    ):
+
+        st.session_state["show_quick_task_form"] = True
+
+    if st.session_state.get(
+        "show_quick_task_form",
+        False,
+    ):
 
         with st.form("quick_task_form"):
 
-            quick_title = st.text_input("Task title")
+            quick_title = st.text_input(
+                "Task title",
+                placeholder="Example: Practice Python DSA",
+            )
 
-            submitted = st.form_submit_button("Save Task")
+            quick_priority = st.selectbox(
+                "Priority",
+                ["High", "Medium", "Low"],
+            )
+
+            quick_deadline = st.date_input(
+                "Deadline",
+                value=date.today(),
+                key="quick_task_deadline",
+            )
+
+            submitted = st.form_submit_button(
+                "Save Task",
+                use_container_width=True,
+            )
 
             if submitted:
 
-                if quick_title.strip():
+                if not quick_title.strip():
+
+                    st.error("Please enter a task title.")
+
+                else:
 
                     add_task(
                         title=quick_title.strip(),
-                        priority="Medium",
+                        priority=quick_priority,
                         duration=30,
-                        deadline=today,
+                        deadline=quick_deadline.isoformat(),
                         created_at=datetime.now().isoformat(),
                     )
 
-                    st.session_state.quick_add = False
+                    st.session_state[
+                        "show_quick_task_form"
+                    ] = False
 
                     st.success("Task saved successfully!")
 
                     st.rerun()
 
-                else:
-
-                    st.warning("Enter a task title.")
-
-# ---------------------------------------
-# TASK MANAGER
-# ---------------------------------------
+# =====================================================
+# TASK MANAGEMENT
+# =====================================================
 
 elif page == "My Tasks":
 
     st.title("📝 My Tasks")
 
     st.write(
-        "Create, prioritize, and track your tasks."
+        "Organize your daily activities and track your progress."
     )
+
+    # Create task
 
     with st.form(
         "add_task_form",
         clear_on_submit=True,
     ):
 
-        title = st.text_input("Task title")
+        title = st.text_input(
+            "Task title",
+            placeholder="Example: Complete Python practice",
+        )
 
         priority = st.selectbox(
             "Priority",
@@ -227,11 +308,18 @@ elif page == "My Tasks":
             value=date.today(),
         )
 
-        submitted = st.form_submit_button("Add Task")
+        submitted = st.form_submit_button(
+            "➕ Add Task",
+            use_container_width=True,
+        )
 
         if submitted:
 
-            if title.strip():
+            if not title.strip():
+
+                st.error("Please enter a task title.")
+
+            else:
 
                 add_task(
                     title=title.strip(),
@@ -245,19 +333,21 @@ elif page == "My Tasks":
 
                 st.rerun()
 
-            else:
-
-                st.warning("Please enter a task title.")
-
     st.divider()
 
-    st.subheader("Your Task List")
+    # Retrieve saved tasks
 
     tasks = get_tasks()
 
+    st.subheader("Your Task List")
+
     if not tasks:
 
-        st.info("No tasks yet. Add your first task!")
+        st.info(
+            "Your task list is empty. Create your first task above!"
+        )
+
+    # Display tasks
 
     for task in tasks:
 
@@ -267,7 +357,17 @@ elif page == "My Tasks":
 
             with col1:
 
-                st.write(f"**{task['title']}**")
+                if task["completed"]:
+
+                    st.markdown(
+                        f"~~{task['title']}~~"
+                    )
+
+                else:
+
+                    st.markdown(
+                        f"**{task['title']}**"
+                    )
 
                 st.caption(
                     f"Priority: {task['priority']} | "
@@ -275,12 +375,16 @@ elif page == "My Tasks":
                     f"Deadline: {task['deadline']}"
                 )
 
+                if task["deadline"] < date.today().isoformat() and not task["completed"]:
+
+                    st.warning("⚠️ This task is overdue.")
+
             with col2:
 
                 completed = st.checkbox(
                     "Completed",
                     value=bool(task["completed"]),
-                    key=f"complete_{task['id']}",
+                    key=f"complete_task_{task['id']}",
                 )
 
                 if completed != bool(task["completed"]):
@@ -294,53 +398,314 @@ elif page == "My Tasks":
 
                 if st.button(
                     "🗑️ Delete",
-                    key=f"delete_{task['id']}",
+                    key=f"delete_task_{task['id']}",
                 ):
 
                     delete_task(task["id"])
 
                     st.rerun()
 
-# ---------------------------------------
-# FUTURE MODULES
-# ---------------------------------------
+# =====================================================
+# GOAL MANAGEMENT
+# =====================================================
 
 elif page == "My Goals":
 
     st.title("🎯 My Goals")
 
-    st.info(
-        "Goal management will be implemented next."
+    st.write(
+        "Turn your ambitions into measurable progress."
     )
+
+    # Create a new goal
+
+    with st.expander(
+        "➕ Create a New Goal",
+        expanded=True,
+    ):
+
+        with st.form("create_goal_form"):
+
+            title = st.text_input(
+                "Goal title",
+                placeholder="Example: Get placed in a Data Science role",
+            )
+
+            category = st.selectbox(
+                "Category",
+                [
+                    "Career",
+                    "Learning",
+                    "Project",
+                    "Health",
+                    "Personal",
+                    "Finance",
+                    "Other",
+                ],
+            )
+
+            description = st.text_area(
+                "Description",
+                placeholder="Describe what you want to achieve...",
+            )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                start_date = st.date_input(
+                    "Start date",
+                    value=date.today(),
+                    key="goal_start_date",
+                )
+
+            with col2:
+
+                target_date = st.date_input(
+                    "Target date",
+                    value=date.today(),
+                    key="goal_target_date",
+                )
+
+            submitted = st.form_submit_button(
+                "Create Goal",
+                use_container_width=True,
+            )
+
+            if submitted:
+
+                if not title.strip():
+
+                    st.error("Please enter a goal title.")
+
+                elif target_date < start_date:
+
+                    st.error(
+                        "Target date cannot be earlier than the start date."
+                    )
+
+                else:
+
+                    add_goal(
+                        title=title.strip(),
+                        category=category,
+                        description=description.strip(),
+                        start_date=start_date.isoformat(),
+                        target_date=target_date.isoformat(),
+                    )
+
+                    st.success("Goal created successfully!")
+
+                    st.rerun()
+
+    st.divider()
+
+    # Goal statistics
+
+    goals = get_goals()
+
+    total_goals = len(goals)
+
+    completed_goals = sum(
+        goal["status"] == "Completed"
+        for goal in goals
+    )
+
+    active_goals = sum(
+        goal["status"] == "Active"
+        for goal in goals
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric(
+        "Total Goals",
+        total_goals,
+    )
+
+    col2.metric(
+        "Active Goals",
+        active_goals,
+    )
+
+    col3.metric(
+        "Completed Goals",
+        completed_goals,
+    )
+
+    st.divider()
+
+    # Display saved goals
+
+    st.subheader("Your Goals")
+
+    if not goals:
+
+        st.info(
+            "No goals yet. Create your first goal above!"
+        )
+
+    for goal in goals:
+
+        with st.container(border=True):
+
+            header_col, status_col = st.columns([4, 1])
+
+            with header_col:
+
+                st.subheader(goal["title"])
+
+                st.caption(
+                    f"Category: {goal['category']} | "
+                    f"Target date: {goal['target_date']}"
+                )
+
+            with status_col:
+
+                if goal["status"] == "Completed":
+
+                    st.success("Completed")
+
+                else:
+
+                    st.info("Active")
+
+            if goal["description"]:
+
+                st.write(goal["description"])
+
+            st.progress(
+                goal["progress"] / 100,
+                text=f"Progress: {goal['progress']}%",
+            )
+
+            new_progress = st.slider(
+                "Update progress",
+                min_value=0,
+                max_value=100,
+                value=goal["progress"],
+                step=5,
+                key=f"goal_progress_{goal['id']}",
+            )
+
+            if new_progress != goal["progress"]:
+
+                update_goal_progress(
+                    goal["id"],
+                    new_progress,
+                )
+
+                st.rerun()
+
+            if st.button(
+                "🗑️ Delete Goal",
+                key=f"delete_goal_{goal['id']}",
+            ):
+
+                delete_goal(goal["id"])
+
+                st.rerun()
+
+# =====================================================
+# DAILY PLANNER
+# =====================================================
 
 elif page == "Daily Planner":
 
     st.title("📅 Daily Planner")
 
-    st.info(
-        "Intelligent scheduling will be implemented next."
+    st.write(
+        "Your daily schedule and time-management workspace."
     )
+
+    st.info(
+        "Intelligent scheduling will be implemented in the next phase."
+    )
+
+# =====================================================
+# HABIT TRACKER
+# =====================================================
 
 elif page == "Habits":
 
     st.title("🔁 Habit Tracker")
 
     st.info(
-        "Habit tracking will be implemented next."
+        "Habit tracking will be implemented in the next phase."
     )
+
+# =====================================================
+# PRODUCTIVITY ANALYTICS
+# =====================================================
 
 elif page == "Analytics":
 
     st.title("📊 Productivity Analytics")
 
-    st.info(
-        "Productivity analytics will be implemented next."
+    tasks = get_tasks()
+
+    total_tasks = len(tasks)
+
+    completed_tasks = sum(
+        bool(task["completed"])
+        for task in tasks
     )
+
+    pending_tasks = total_tasks - completed_tasks
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric(
+        "Total Tasks",
+        total_tasks,
+    )
+
+    col2.metric(
+        "Completed Tasks",
+        completed_tasks,
+    )
+
+    col3.metric(
+        "Pending Tasks",
+        pending_tasks,
+    )
+
+    if total_tasks > 0:
+
+        completion_rate = (
+            completed_tasks / total_tasks
+        )
+
+        st.subheader("Task Completion Progress")
+
+        st.progress(
+            completion_rate,
+            text=f"{completion_rate * 100:.0f}% completed",
+        )
+
+    else:
+
+        st.info(
+            "Add some tasks to start tracking your productivity."
+        )
+
+# =====================================================
+# AI ASSISTANT
+# =====================================================
 
 elif page == "AI Assistant":
 
     st.title("🤖 LifeOS AI Assistant")
 
+    st.write(
+        "Your personal assistant for planning and productivity."
+    )
+
     st.info(
-        "The AI agent will be integrated in a later phase."
+        "The AI agent will be integrated in the next phase."
+    )
+
+    st.caption(
+        "Planned capabilities include task prioritization, "
+        "goal-based planning, and schedule recommendations."
     )
